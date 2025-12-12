@@ -42,7 +42,7 @@ export function useChatController() {
                 }),
                 switchMap(({ message: userMessage, useRag }) => {
                     console.log('🔄 switchMap 시작');
-
+                    console.log('messages:', messages);
                     // 대화 이력 준비
                     const conversationHistory = messages
                         .filter((msg) => msg.id !== 'welcome')
