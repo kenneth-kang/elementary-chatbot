@@ -50,7 +50,7 @@
 brew install ollama
 
 # 모델 다운로드
-ollama pull llama3.2:3b
+ollama pull llama3.1:8b
 ```
 
 ### 2. 자동 설치 (권장)
@@ -290,7 +290,7 @@ npm run dev -- -p 3001
 
 ```bash
 # 모델 재다운로드
-ollama pull llama3.2:3b
+ollama pull llama3.1:8b
 
 # 다른 모델 시도
 ollama pull gemma:2b
