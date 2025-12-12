@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useAtom, useSetAtom } from 'jotai';
 import { Subscription } from 'rxjs';
-import { switchMap, tap, catchError, finalize } from 'rxjs/operators';
+import { switchMap, tap, catchError, finalize, take } from 'rxjs/operators';
 import { of } from 'rxjs';
 import {
     messagesAtom,
@@ -16,9 +16,6 @@ import {
 } from '@/store/chatStore';
 import { ApiService } from '@/services/api.service';
 
-/**
- * RxJS 기반 채팅 컨트롤러 Hook
- */
 export function useChatController() {
     const [messages] = useAtom(messagesAtom);
     const [isLoading, setIsLoading] = useAtom(isLoadingAtom);
@@ -30,16 +27,21 @@ export function useChatController() {
     const subscriptionsRef = useRef<Subscription[]>([]);
 
     useEffect(() => {
+        console.log('🔧 useChatController 초기화');
+
         // 채팅 요청 스트림 구독
         const chatSubscription = chatRequestSubject
             .pipe(
-                tap(() => {
+                tap(({ message }) => {
+                    console.log('📨 채팅 요청 수신:', message);
                     setIsLoading(true);
                     setError(null);
+
+                    // 사용자 메시지 추가
+                    addMessage({ content: message, role: 'user' });
                 }),
                 switchMap(({ message: userMessage, useRag }) => {
-                    // 사용자 메시지 추가
-                    addMessage({ content: userMessage, role: 'user' });
+                    console.log('🔄 switchMap 시작');
 
                     // 대화 이력 준비
                     const conversationHistory = messages
@@ -53,11 +55,15 @@ export function useChatController() {
                             },
                         ]);
 
-                    // API 호출
+                    console.log('📜 대화 이력:', conversationHistory.length, '개');
+
+                    // API 호출 Observable 생성
                     return ApiService.sendMessage(userMessage, conversationHistory, useRag).pipe(
                         tap((response) => {
+                            console.log('✅ tap 실행 - API 응답:', response);
+                            console.log('✅ 응답 내용:', response.response.substring(0, 100));
+
                             // 응답 메시지 추가
-                            console.log('sendMessage result : ', response);
                             addMessage({
                                 content: response.response,
                                 role: 'assistant',
@@ -69,6 +75,7 @@ export function useChatController() {
                             }
                         }),
                         catchError((err) => {
+                            console.error('❌ catchError 실행:', err);
                             const errorMessage = err instanceof Error ? err.message : '알 수 없는 오류가 발생했어요.';
 
                             setError(errorMessage);
@@ -77,16 +84,29 @@ export function useChatController() {
                                 role: 'assistant',
                             });
 
+                            // 오류를 처리하고 빈 Observable 반환
                             return of(null);
                         }),
                         finalize(() => {
+                            console.log('🏁 finalize 실행 - 로딩 해제');
                             setIsLoading(false);
                         })
                     );
                 })
             )
-            .subscribe();
+            .subscribe({
+                next: (value) => {
+                    console.log('✅ subscribe next:', value);
+                },
+                error: (err) => {
+                    console.error('❌ subscribe error:', err);
+                },
+                complete: () => {
+                    console.log('🏁 subscribe complete');
+                },
+            });
 
+        console.log('📌 chatSubscription 생성됨');
         subscriptionsRef.current.push(chatSubscription);
 
         // 파일 업로드 스트림 구독
@@ -96,7 +116,6 @@ export function useChatController() {
                     return ApiService.uploadFile(file, metadata).pipe(
                         tap((response) => {
                             console.log('✅ 파일 업로드 성공:', response);
-                            // 문서 통계 새로고침
                             healthCheckSubject.next(true);
                         }),
                         catchError((err) => {
@@ -133,29 +152,43 @@ export function useChatController() {
         // 초기 헬스체크
         healthCheckSubject.next(true);
 
-        // Cleanup: 모든 구독 해제
+        // Cleanup
         return () => {
+            console.log('🧹 useChatController cleanup');
             subscriptionsRef.current.forEach((sub) => sub.unsubscribe());
             subscriptionsRef.current = [];
         };
-    }, [messages, addMessage, setIsLoading, setError, setDocumentStats]);
+    }, [
+        // messages는 제거! (무한 루프 방지)
+        addMessage,
+        setIsLoading,
+        setError,
+        setDocumentStats,
+        ragEnabled,
+    ]);
 
-    // 메시지 전송 함수
     const sendMessage = (message: string) => {
-        if (isLoading || !message.trim()) return;
-        console.log('sendMessage : ', message);
+        console.log('🚀 sendMessage 호출:', message);
+        console.log('   isLoading:', isLoading);
+        console.log('   message.trim():', message.trim());
+
+        if (isLoading || !message.trim()) {
+            console.warn('⚠️ 전송 불가:', { isLoading, isEmpty: !message.trim() });
+            return;
+        }
+
+        console.log('📤 chatRequestSubject.next 호출');
         chatRequestSubject.next({
             message: message.trim(),
             useRag: ragEnabled,
         });
+        console.log('📤 chatRequestSubject.next 완료');
     };
 
-    // 파일 업로드 함수
     const uploadFile = (file: File, metadata: { subject?: string; grade?: string; topic?: string }) => {
         uploadRequestSubject.next({ file, metadata });
     };
 
-    // 헬스체크 강제 실행
     const refreshStats = () => {
         healthCheckSubject.next(true);
     };

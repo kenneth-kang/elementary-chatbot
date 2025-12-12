@@ -8,7 +8,17 @@ import os
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
-CORS(app)
+# CORS 설정 강화 (수정)
+CORS(app, resources={
+    r"/*": {
+        "origins": ["http://localhost:3000", "http://127.0.0.1:3000"],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"],
+        "expose_headers": ["Content-Type"],
+        "supports_credentials": True,
+        "max_age": 3600
+    }
+})
 
 # RAG 매니저 초기화
 rag_manager = RAGManager()
@@ -38,6 +48,16 @@ SYSTEM_PROMPT = """너는 초등학생들을 위한 친절한 선생님 AI야.
 - 숙제 답을 직접 주지 않고, 힌트와 방법을 알려줘
 - 항상 긍정적인 방향으로 유도해
 - 참고자료가 제공되면, 그 내용을 기반으로 정확하게 설명해"""
+
+# OPTIONS 요청 처리 추가 (중요!)
+@app.before_request
+def handle_preflight():
+    if request.method == "OPTIONS":
+        response = app.make_default_options_response()
+        response.headers['Access-Control-Allow-Origin'] = 'http://localhost:3000'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        return response
 
 def allowed_file(filename):
     """허용된 파일 확장자 체크"""

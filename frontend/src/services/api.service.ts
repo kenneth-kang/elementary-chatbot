@@ -4,7 +4,7 @@ import { map, catchError, retry, timeout, shareReplay } from 'rxjs/operators';
 import { Message, ChatResponse, DocumentStats, UploadResponse } from '@/types/chat';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
-const REQUEST_TIMEOUT = 30000; // 30초
+const REQUEST_TIMEOUT = 60000; // 30초
 
 /**
  * RxJS 기반 API 서비스
@@ -13,13 +13,16 @@ export class ApiService {
     /**
      * 서버 상태 확인
      */
-    static checkHealth(): Observable<{ status: string; rag_stats: DocumentStats }> {
-        return ajax.getJSON<{ status: string; rag_stats: DocumentStats }>(`${API_URL}/health`).pipe(
+    static checkHealth(): Observable {
+        return from(
+            fetch(`${API_URL}/health`, {
+                method: 'GET',
+                mode: 'cors',
+            }).then((res) => res.json())
+        ).pipe(
             timeout(5000),
-            retry(2),
-            catchError((error) => {
-                console.error('Health check failed:', error);
-                return throwError(() => new Error('서버 연결 실패'));
+            catchError(() => {
+                throw new Error('서버 연결 실패');
             })
         );
     }
@@ -27,30 +30,42 @@ export class ApiService {
     /**
      * 채팅 메시지 전송 (대화 이력 포함)
      */
-    static sendMessage(message: string, history: Message[], useRag: boolean = true): Observable<ChatResponse> {
+    static sendMessage(message: string, history: Message[], useRag: boolean = true): Observable {
         const conversationHistory = history.map((msg) => ({
             role: msg.role,
             content: msg.content,
         }));
-        console.log('api sendMessage : ', message);
-        return ajax({
-            url: `${API_URL}/chat`,
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: {
-                message,
-                history: conversationHistory,
-                use_rag: useRag,
-            },
-        }).pipe(
+
+        console.log('📤 API 요청 시작:', { message, historyLength: history.length });
+
+        return from(
+            fetch(`${API_URL}/chat`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    message,
+                    history: conversationHistory,
+                    use_rag: useRag,
+                }),
+                mode: 'cors', // 명시적 CORS
+            }).then(async (response) => {
+                console.log('📥 응답 상태:', response.status);
+
+                if (!response.ok) {
+                    throw new Error(`서버 오류: ${response.status}`);
+                }
+
+                const data = await response.json();
+                console.log('✅ 응답 데이터:', data);
+                return data;
+            })
+        ).pipe(
             timeout(REQUEST_TIMEOUT),
-            map((ajaxResponse: AjaxResponse<ChatResponse>) => ajaxResponse.response),
-            retry(1),
-            catchError((error) => {
-                console.error('Chat API error:', error);
-                return throwError(() => new Error('죄송해요, 지금은 대답하기 어려워요. 😢 잠시 후 다시 시도해줄래요?'));
+            catchError((error: any) => {
+                console.error('❌ API 오류:', error);
+                throw new Error('죄송해요, 지금은 대답하기 어려워요. 😢');
             })
         );
     }
@@ -59,7 +74,7 @@ export class ApiService {
      * 스트리밍 채팅 (EventSource 기반)
      */
     static sendMessageStream(message: string, history: Message[], useRag: boolean = true): Observable<{ content?: string; done?: boolean }> {
-        return new Observable((observer) => {
+        return new Observable((observer: any) => {
             const conversationHistory = history.map((msg) => ({
                 role: msg.role,
                 content: msg.content,
