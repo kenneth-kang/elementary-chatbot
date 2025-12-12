@@ -1,0 +1,58 @@
+# 공통적으로 무시할 파일 및 폴더
+
+# Node.js 패키지 관리자 관련
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# 빌드 및 배포 관련 임시 파일/폴더
+build/
+dist/
+.cache/
+.parcel-cache/
+*.log
+npm-debug.log*
+
+# 환경 변수 및 보안 파일 (.env 파일은 절대 커밋하면 안 됩니다)
+.env
+.env.development.local
+.env.test.local
+.env.production.local
+.env.*.local
+
+# 운영체제/에디터별 생성 파일
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# 언어별/프레임워크별 추가 무시 항목 (예시)
+
+## 프론트엔드 (React, Vue 등)
+# Next.js
+.next/
+out/
+
+# Nuxt.js
+.nuxt/
+.output/
+
+# Sveltekit
+.svelte-kit/
+
+## 백엔드 (Node.js, Python, Java 등)
+# Python (예시)
+backend/venv/
+__pycache__/
+*.pyc
+.venv/
+venv/
+pip-log.txt
+
+# Java (예시)
+/target/
+
+# 특정 폴더 내의 파일 무시 (명시적으로 지정할 경우)
+# /frontend/node_modules/
+# /backend/node_modules/
