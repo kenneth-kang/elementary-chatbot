@@ -4,8 +4,49 @@ import ollama
 import json
 from datetime import datetime
 from rag_manager import RAGManager
+from gpt_manager import ask_gpt
+
 import os
+import re
 from werkzeug.utils import secure_filename
+
+
+EASY_PATTERNS = [
+    r"안녕", r"반가워", r"고마워",
+    r"몇 살", r"이름", r"누구야",
+]
+
+HARD_PATTERNS = [
+    r"왜", r"어떻게", r"설명", r"이유",
+    r"원리", r"과정", r"차이",
+    r"비교", r"단계", r"증명",
+]
+
+
+def classify_question(text: str) -> str:
+    text = text.strip()
+
+    for p in HARD_PATTERNS:
+        if re.search(p, text):
+            return "hard"
+
+    for p in EASY_PATTERNS:
+        if re.search(p, text):
+            return "easy"
+
+    # 길이 기반 보정
+    if len(text) > 20:
+        return "hard"
+
+    return "easy"
+
+
+def ask_local_llm(messages):
+    return ollama.chat(
+        model="elementary-kor-teacher",
+        messages=messages
+    )
+
 
 app = Flask(__name__)
 # CORS 설정 강화 (수정)
@@ -142,12 +183,26 @@ def chat():
         
         # 5. LLM 호출
         print(f"🤖 LLM 호출 - 총 {len(messages)}개 메시지 전달")
+
         response = ollama.chat(
             model='elementary-kor-teacher',
             messages=messages
         )
+
+        # level = classify_question(user_text)
+
+        # if level == "easy":
+        #     response = ollama.chat(
+        #         model='elementary-kor-teacher',
+        #         messages=messages
+        #     )
+            
+        #     bot_response = response['message']['content']
+        # else:
+        #     response = ask_gpt(user_text, messages)
+        #     bot_response = response['message']['content']
+
         print(f"🤖 LLM 호출결과 - {response}")
-        bot_response = response['message']['content']
         
         # 6. 응답 반환
         return jsonify({
